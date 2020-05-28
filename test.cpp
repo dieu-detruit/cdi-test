@@ -1,4 +1,5 @@
 #include <array>
+#include <grid/core.hpp>
 #include <iostream>
 #include <unit/double.hpp>
 
@@ -6,7 +7,7 @@ int main()
 {
     using namespace Unit;
 
-    std::array<Complex<Length>, 4> hoge;
+    Grid::GridVector<Complex<Length>, double, 2> hoge{{-1.0, 1.0, 2}, {-1.0, 1.0, 2}};
 
     double* fuga = (double*)hoge.data();
 
