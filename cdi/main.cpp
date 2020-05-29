@@ -1,7 +1,7 @@
 #include <fftw3.h>
+#include <grid/bundle.hpp>
 #include <grid/core.hpp>
 #include <grid/linear.hpp>
-#include <grid/zip.hpp>
 #include <unit/double.hpp>
 
 #include <cmath>
@@ -23,8 +23,8 @@ template <class grid_array>
 void print_file(grid_array& ar, std::string filename)
 {
     std::ofstream file(filename);
-    for (auto& x : ar.line(0)) {
-        for (auto& y : ar.line(1)) {
+    for (auto x : ar.line(0)) {
+        for (auto y : ar.line(1)) {
             file << x / 1.0_m << ' '
                  << y / 1.0_m << ' '
                  << ar.at(x, y).arg() / 1.0_rad << ' '
@@ -70,10 +70,8 @@ int main()
 
             exit.fill(0.0 * amp_unit);
 
-            for (auto& x : image.line(0)) {
-                for (auto& y : image.line(1)) {
-                    exit.at(x, y) = image.at(x, y);
-                }
+            for (auto [x, y] : image.lines()) {
+                exit.at(x, y) = image.at(x, y);
             }
             print_file(exit, "exit.txt");
         }
@@ -107,7 +105,7 @@ int main()
     }
 
     std::ofstream problem_file("problem.txt");
-    for (auto& x : detected_I.line(0)) {
+    for (auto [x, y] : detected_I.lines()) {
         for (auto& y : detected_I.line(1)) {
             problem_file << x / 1.0_m << ' ' << y / 1.0_m << ' ' << detected_I.at(x, y) / amp_unit / amp_unit << std::endl;
         }
@@ -153,14 +151,12 @@ int main()
             }
 
             // 透過面背後の拘束 (オブジェクト範囲外なら光源のまま)
-            for (auto& x : exit.line(0)) {
-                for (auto& y : exit.line(1)) {
-                    if ((x * x + y * y).sqrt() < 0.5 * object_diameter) {
-                        // exit.at(x, y) = exit.at(x, y); // Do Nothing
-                    } else {
-                        if (i > 0) {
-                            exit.at(x, y) = exit_prev.at(x, y) - beta * exit_prev.at(x, y);
-                        }
+            for (auto [x, y] : exit.lines()) {
+                if ((x * x + y * y).sqrt() < 0.5 * object_diameter) {
+                    // exit.at(x, y) = exit.at(x, y); // Do Nothing
+                } else {
+                    if (i > 0) {
+                        exit.at(x, y) = exit_prev.at(x, y) - beta * exit_prev.at(x, y);
                     }
                 }
             }
