@@ -24,11 +24,11 @@ find_library (
     NO_DEFAULT_PATH # do not search system default paths
 )
 
-set(EXEC_NAMES isolated test)
+set(EXEC_NAMES test cdi)
 
 foreach(EXEC_NAME ${EXEC_NAMES})
 
-    add_executable(${EXEC_NAME} "${EXEC_NAME}")
+    add_executable(${EXEC_NAME} ${EXEC_NAME}/main.cpp)
     target_include_directories(${EXEC_NAME} PRIVATE
         ${FFTW3_INCLUDE_DIRS}
         external/grid/include

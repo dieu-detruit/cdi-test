@@ -65,7 +65,7 @@ int main()
             for (auto& px : image) {
                 int pixel;
                 file >> pixel;  // pixel value is in [0, 255]
-                px = 1.0 * (1.0 - pixel / 255.0) * amp_unit;
+                px = polar(1.0 * (1.0 - pixel / 255.0) * amp_unit, 0.3 * M_PI * (1.0 - pixel / 255.0) * 1.0_rad);
             }
 
             exit.fill(0.0 * amp_unit);
@@ -140,7 +140,7 @@ int main()
 
     // 反復計算
     int i = 0;
-    for (auto target : std::array<std::size_t, 6>{101, 501, 751, 1001, 2001, 3001}) {
+    for (auto target : std::array<std::size_t, 7>{101, 501, 751, 1001, 2001, 5001, 10001}) {
         for (; i < target; ++i) {
             if (i % 10 == 0) {
                 std::cout << "rep: " << i << std::endl;
@@ -155,7 +155,7 @@ int main()
             // 透過面背後の拘束 (オブジェクト範囲外なら光源のまま)
             for (auto& x : exit.line(0)) {
                 for (auto& y : exit.line(1)) {
-                    if (is_in_closed(x, -0.5 * object_length, 0.5 * object_length) && is_in_closed(y, -0.5 * object_length, 0.5 * object_length)) {
+                    if ((x * x + y * y).sqrt() < 0.5 * object_diameter) {
                         // exit.at(x, y) = exit.at(x, y); // Do Nothing
                     } else {
                         if (i > 0) {
