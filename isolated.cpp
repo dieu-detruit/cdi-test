@@ -36,12 +36,13 @@ void print_file(grid_array& ar, std::string filename)
 
 int main()
 {
-    /*
     if (!fftw_init_threads()) {
         std::cerr << "error at initialization of threads" << std::endl;
         return 1;
-    }*/
-    //fftw_plan_with_nthreads(4);
+    }
+    fftw_plan_with_nthreads(4);
+
+    std::cout << "making problem..." << std::endl;
 
     Grid::DynamicRange<Length> detector_range{-0.5 * detector_length, 0.5 * detector_length, detector_pixel_num};
     Grid::DynamicRange<Length> diffraction_plane_range{-0.5 * diffraction_plane_length, 0.5 * diffraction_plane_length, detector_pixel_num};
@@ -57,17 +58,21 @@ int main()
         // それなりに疎な出口関数
         Grid::GridVector<Complex<WaveAmplitude>, Length, 2> exit{diffraction_plane_range, diffraction_plane_range};
         {
+            Grid::DynamicRange<Length> object_range{-0.5 * object_length, 0.5 * object_length, image_pixel_num};
+            Grid::GridVector<Complex<WaveAmplitude>, Length, 2> image{object_range, object_range};
             std::ifstream file("../image/transobj.txt");
 
-            for (auto& x : exit.line(0)) {
-                for (auto& y : exit.line(1)) {
-                    if (is_in_closed(x, -0.5 * object_length, 0.5 * object_length) && is_in_closed(y, -0.5 * object_length, 0.5 * object_length)) {
-                        int pixel;
-                        file >> pixel;  // pixel value is in [0, 255]
-                        exit.at(x, y) = 1.0 * (1.0 - pixel / 255.0) * amp_unit;
-                    } else {
-                        exit.at(x, y) = 0.0 * amp_unit;
-                    }
+            for (auto& px : image) {
+                int pixel;
+                file >> pixel;  // pixel value is in [0, 255]
+                px = 1.0 * (1.0 - pixel / 255.0) * amp_unit;
+            }
+
+            exit.fill(0.0 * amp_unit);
+
+            for (auto& x : image.line(0)) {
+                for (auto& y : image.line(1)) {
+                    exit.at(x, y) = image.at(x, y);
                 }
             }
             print_file(exit, "exit.txt");
@@ -109,48 +114,58 @@ int main()
         problem_file << std::endl;
     }
 
+    std::cout << "preparing to solve the problem..." << std::endl;
+
     // 以下で位相回復をする
     Grid::GridVector<Complex<WaveAmplitude>, Length, 2> detected{detector_range, detector_range};
     Grid::GridVector<Complex<WaveAmplitude>, Length, 2> exit{diffraction_plane_range, diffraction_plane_range};
-    Grid::GridVector<Complex<WaveAmplitude>, Length, 2> exit_tmp{diffraction_plane_range, diffraction_plane_range};
+    Grid::GridVector<Complex<WaveAmplitude>, Length, 2> exit_prev{diffraction_plane_range, diffraction_plane_range};
 
     // planの初期化は配列の初期化前にする(FFTW3公式より)
     fftw_plan plan_to_reciprocal
         = fftw_plan_dft_2d(detector_pixel_num, detector_pixel_num,
-            reinterpret_cast<fftw_complex*>(exit.data()), reinterpret_cast<fftw_complex*>(detected.data()), FFTW_BACKWARD, FFTW_ESTIMATE);
+            reinterpret_cast<fftw_complex*>(exit.data()), reinterpret_cast<fftw_complex*>(detected.data()), FFTW_BACKWARD, FFTW_MEASURE);
     fftw_plan plan_to_real
         = fftw_plan_dft_2d(detector_pixel_num, detector_pixel_num,
-            reinterpret_cast<fftw_complex*>(detected.data()), reinterpret_cast<fftw_complex*>(exit_tmp.data()), FFTW_BACKWARD, FFTW_ESTIMATE);
+            reinterpret_cast<fftw_complex*>(detected.data()), reinterpret_cast<fftw_complex*>(exit.data()), FFTW_BACKWARD, FFTW_MEASURE);
 
     // 初期値を適当に撒く
-    std::uniform_real_distribution<double> dist_phase{0.0, 2.0 * M_PI};
+    std::uniform_real_distribution<double> dist_phase{-M_PI, M_PI};
     for (auto [f, I] : Grid::zip(detected, detected_I)) {
         Phase phase = dist_phase(engine) * 1.0_rad;
         f = Complex<WaveAmplitude>::polar(I.sqrt(), phase);
     }
 
+    print_file(detected, "init.txt");
+
     // 反復計算
     int i = 0;
-    for (auto target : std::array<std::size_t, 4>{100, 500, 750, 1000}) {
+    for (auto target : std::array<std::size_t, 6>{101, 501, 751, 1001, 2001, 3001}) {
         for (; i < target; ++i) {
-            std::cout << "rep: " << i << std::endl;
+            if (i % 10 == 0) {
+                std::cout << "rep: " << i << std::endl;
+            }
             // ディテクター面 -> 出口関数
             fftw_execute(plan_to_real);
 
             if (i == target - 1) {
-                print_file(exit_tmp, "epoch_" + std::to_string(i) + "_exit.txt");
+                print_file(exit, "epoch_" + std::to_string(i) + "_exit.txt");
             }
 
             // 透過面背後の拘束 (オブジェクト範囲外なら光源のまま)
             for (auto& x : exit.line(0)) {
                 for (auto& y : exit.line(1)) {
                     if (is_in_closed(x, -0.5 * object_length, 0.5 * object_length) && is_in_closed(y, -0.5 * object_length, 0.5 * object_length)) {
-                        exit.at(x, y) = exit_tmp.at(x, y);
+                        // exit.at(x, y) = exit.at(x, y); // Do Nothing
                     } else {
-                        exit.at(x, y) -= beta * exit_tmp.at(x, y);
-                        //exit.at(x, y) = 0.0 * amp_unit;
+                        if (i > 0) {
+                            exit.at(x, y) = exit_prev.at(x, y) - beta * exit_prev.at(x, y);
+                        }
                     }
                 }
+            }
+            for (auto [e, e_prev] : Grid::zip(exit, exit_prev)) {
+                e_prev = e;
             }
 
             // 出口関数 -> ディテクター面
@@ -177,7 +192,7 @@ int main()
 
     print_file(exit, "answer.txt");
 
-    //fftw_cleanup_threads();
+    fftw_cleanup_threads();
 
     return 0;
 }
