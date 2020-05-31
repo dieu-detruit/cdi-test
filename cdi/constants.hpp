@@ -2,11 +2,8 @@
 
 #include <unit/double.hpp>
 
-// 照明関数、透過関数、オブジェクト、ディテクター面はすべて正方形
-
 inline namespace Constant
 {
-
 
 using namespace Unit;
 
@@ -16,9 +13,10 @@ using WaveAmplitude = decltype(PhotonFluxDensity{}.sqrt());
 
 inline const WaveAmplitude amp_unit{1.0};
 
-inline constexpr std::size_t image_pixel_num = 225;
-inline constexpr std::size_t object_pixel_num = 50;
-inline constexpr std::size_t detector_pixel_num = 655;
+inline constexpr std::size_t image_pixel_num = 847;
+inline constexpr std::size_t object_pixel_num = 128;
+inline constexpr std::size_t oversampling_ratio = 3;
+inline constexpr std::size_t detector_pixel_num = object_pixel_num * oversampling_ratio;
 
 inline constexpr Length detector_pixel_size = 50.0_um;
 inline constexpr Length detector_length = double(detector_pixel_num) * detector_pixel_size;
