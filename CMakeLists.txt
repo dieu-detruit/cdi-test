@@ -31,7 +31,7 @@ find_library(
        NAMES omp libomp
     )
 
-set(EXEC_NAMES test cdi)
+set(EXEC_NAMES test cdi ptychography)
 
 foreach(EXEC_NAME ${EXEC_NAMES})
 

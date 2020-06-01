@@ -1,12 +1,36 @@
 #include <fftw3.h>
 
 #include <array>
+#include <filesystem>
 #include <iostream>
 #include <random>
 
 #include <grid/core.hpp>
 #include <grid/zip.hpp>
 #include <unit/double.hpp>
+
+int main()
+{
+    std::cout << std::endl;
+    double itr_max = 100000000;
+    std::cout << '[';
+    for (int i = 0; i < 50; ++i) {
+        std::cout << ' ';
+    }
+    std::cout << "]\r[";
+
+    std::size_t hoge = itr_max / 50;
+    int fuga;
+    for (int i = 0; i < itr_max; ++i) {
+        fuga = i * i;
+        if (i % hoge == 0) {
+            std::cout << '*';
+        }
+    }
+    std::cout << std::endl;
+
+    return 0;
+}
 
 #if 0
 int main()
@@ -86,7 +110,7 @@ int main(int argc, const char* argv[])
 }
 #endif
 
-#if 1
+#if 0
 int main(int argc, const char* argv[])
 {
     using complex_t = std::complex<double>;
