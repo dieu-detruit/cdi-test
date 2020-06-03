@@ -1,13 +1,67 @@
 #include <fftw3.h>
 
 #include <array>
+#include <bitset>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <random>
 
 #include <grid/core.hpp>
 #include <grid/zip.hpp>
 #include <unit/double.hpp>
+
+#if 1
+template <typename T>
+void print_bits(T val)
+{
+    struct byte {
+        bool bit3 : 1;
+        bool bit2 : 1;
+        bool bit1 : 1;
+        bool bit0 : 1;
+    };
+
+    byte* bytes = reinterpret_cast<byte*>(&val);
+
+    for (int i = 0; i < sizeof(T); ++i) {
+        std::cout << bytes[i].bit0 << bytes[i].bit1 << bytes[i].bit2 << bytes[i].bit3;
+    }
+    std::cout << std::endl;
+}
+
+int main()
+{
+
+    double a = (0.9 - 0.5) / 0.1;
+
+    std::cout << std::fixed << std::setprecision(4) << a << std::endl;
+    print_bits(a);
+
+    double b = +a;
+
+    std::cout << std::fixed << std::setprecision(4) << b << std::endl;
+    print_bits(b);
+
+
+    int i = b;
+
+    std::cout << i << std::endl;
+    print_bits(i);
+
+    long l = b;
+
+    std::cout << l << std::endl;
+    print_bits(l);
+
+    std::size_t ul = b;
+
+    std::cout << ul << std::endl;
+    print_bits(ul);
+
+    return 0;
+}
+#endif
 
 #if 0
 int main()
@@ -84,7 +138,7 @@ int main()
 }
 #endif
 
-#if 1
+#if 0
 int main(int argc, const char* argv[])
 {
     using complex_t = std::complex<double>;

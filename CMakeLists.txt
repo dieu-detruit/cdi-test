@@ -24,7 +24,7 @@ find_library (
     NO_DEFAULT_PATH # do not search system default paths
 )
 
-set(EXEC_NAMES test cdi rpie)
+set(EXEC_NAMES test cdi pie rpie)
 
 foreach(EXEC_NAME ${EXEC_NAMES})
 
