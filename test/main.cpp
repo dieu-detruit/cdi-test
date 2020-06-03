@@ -9,6 +9,26 @@
 #include <grid/zip.hpp>
 #include <unit/double.hpp>
 
+#if 0
+int main()
+{
+    // error
+
+    using namespace Unit;
+
+    std::random_device seed_gen{};
+    std::mt19937 engine{seed_gen()};
+    std::uniform_real_distribution<Length> dist{0.0_m, 1.0_nm};
+
+    for (int i = 0; i < 10; ++i) {
+        std::cout << dist(engine) << std::endl;
+    }
+
+    return 0;
+}
+#endif
+
+#if 0
 int main()
 {
     std::cout << std::endl;
@@ -31,6 +51,7 @@ int main()
 
     return 0;
 }
+#endif
 
 #if 0
 int main()
@@ -63,7 +84,7 @@ int main()
 }
 #endif
 
-#if 0
+#if 1
 int main(int argc, const char* argv[])
 {
     using complex_t = std::complex<double>;
@@ -79,7 +100,7 @@ int main(int argc, const char* argv[])
     complex_t* out = (complex_t*)fftw_malloc(sizeof(complex_t) * fftsize);
 
     plan_fft = fftw_plan_dft_2d(32, 32, (fftw_complex*)in, (fftw_complex*)out, FFTW_FORWARD, FFTW_ESTIMATE);
-    plan_ifft = fftw_plan_dft_2d(32, 32, (fftw_complex*)in, (fftw_complex*)out, FFTW_BACKWARD, FFTW_ESTIMATE);
+    plan_ifft = fftw_plan_dft_2d(32, 32, (fftw_complex*)out, (fftw_complex*)in, FFTW_BACKWARD, FFTW_ESTIMATE);
 
     /* create sin wave of 440Hz */
     double sum_value_before = 0.0;
@@ -98,9 +119,30 @@ int main(int argc, const char* argv[])
     for (auto [i, j] : Grid::zip(Grid::arange(0, 32, 1), Grid::arange(0, 32, 1))) {
         sum_value_after += std::norm(in[size_h * i + j]);
     }
+    //for (auto [i, j] : Grid::zip(Grid::arange(0, 32, 1), Grid::arange(0, 32, 1))) {
+    //in[size_h * i + j] /= 1024 * 1024;
+    //}
+
+    fftw_execute(plan_fft);
+    fftw_execute(plan_ifft);
+
+    double sum_value_after2 = 0.0;
+    for (auto [i, j] : Grid::zip(Grid::arange(0, 32, 1), Grid::arange(0, 32, 1))) {
+        sum_value_after2 += std::norm(in[size_h * i + j]);
+    }
+
+    //fftw_execute(plan_fft);
+    //fftw_execute(plan_ifft);
+
+    //double sum_value_after3 = 0.0;
+    //for (auto [i, j] : Grid::zip(Grid::arange(0, 32, 1), Grid::arange(0, 32, 1))) {
+    //sum_value_after2 += std::norm(in[size_h * i + j]);
+    //}
 
     std::cout << "before: " << sum_value_before << std::endl;
     std::cout << "after:  " << sum_value_after << std::endl;
+    std::cout << "after2: " << sum_value_after2 << std::endl;
+    //std::cout << "after3: " << sum_value_after3 << std::endl;
 
     fftw_destroy_plan(plan_fft);
     fftw_destroy_plan(plan_ifft);

@@ -147,7 +147,7 @@ int main()
     Grid::GridArray<Complex<WaveAmplitude>, Length, detector_pixel_num, detector_pixel_num> detected{static_detector_range, static_detector_range};
     Grid::GridArray<Complex<WaveAmplitude>, Length, detector_pixel_num, detector_pixel_num> exit{static_diffraction_plane_range, static_diffraction_plane_range};
     Grid::GridArray<Complex<WaveAmplitude>, Length, detector_pixel_num, detector_pixel_num> exit_prev{static_diffraction_plane_range, static_diffraction_plane_range};
-    Grid::GridVector<bool, Length, 2> support{diffraction_plane_range, diffraction_plane_range};
+    Grid::GridArray<bool, Length, detector_pixel_num, detector_pixel_num> support{static_diffraction_plane_range, static_diffraction_plane_range};
 
     // planの初期化は配列の初期化前にする(FFTW3公式より)
     fftw_plan plan_to_reciprocal

@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.17)
 
-set(CMAKE_CXX_COMPILER "/usr/local/opt/llvm/bin/clang++" CACHE STRING "g++ compiler" FORCE)
-set(CMAKE_C_COMPILER "/usr/local/opt/llvm/bin/clang" CACHE STRING "gcc compiler" FORCE)
 set(CMAKE_C_FLAG "${CMAKE_C_FLAGS} -g -O0 -fmax-errors=5 -Wfatal-errors")
 set(CMAKE_CXX_FLAG "${CMAKE_C_FLAGS} -g -O0 -fmax-errors=5 -Wfatal-errors -enable-threads")
 
@@ -26,12 +24,7 @@ find_library (
     NO_DEFAULT_PATH # do not search system default paths
 )
 
-find_library(
-       OpenMP_LIB
-       NAMES omp libomp
-    )
-
-set(EXEC_NAMES test cdi ptychography)
+set(EXEC_NAMES test cdi rpie)
 
 foreach(EXEC_NAME ${EXEC_NAMES})
 
@@ -40,9 +33,9 @@ foreach(EXEC_NAME ${EXEC_NAMES})
         ${FFTW3_INCLUDE_DIRS}
         external/grid/include
         external/unit/include)
-    target_link_libraries(${EXEC_NAME} ${FFTW3_LIB} ${FFTW3_THREAD_LIB} ${OpenMP_LIB})
+    target_link_libraries(${EXEC_NAME} ${FFTW3_LIB} ${FFTW3_THREAD_LIB})
 
     target_compile_options(${EXEC_NAME} PRIVATE
-            -fopenmp -g -Ofast -Wfatal-errors)
+            -g -O3 -Wfatal-errors)
 
 endforeach()
