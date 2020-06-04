@@ -42,7 +42,7 @@ void print_file(complex_grid_vector& ar, std::string filename)
 struct DensityDistMeasurement {
     Length offset_x;
     Length offset_y;
-    Grid::GridVector<PhotonFluxDensity, Length, 2> dist_abs;
+    Grid::GridVector<WaveAmplitude, Length, 2> dist_abs;
 
     DensityDistMeasurement() : offset_x(0.0), offset_y(0.0),
                                dist_abs{{-0.5 * detector_length, 0.5 * detector_length, detector_pixel_num}, {-0.5 * detector_length, 0.5 * detector_length, detector_pixel_num}} {}
@@ -87,17 +87,17 @@ int main()
 
     // 既知の情報
     std::vector<DensityDistMeasurement> detected_rtI_list;
-    Grid::GridVector<Complex<WaveAmplitude>, Length, 2> probe{reconstruct_box_range, reconstruct_box_range};
 
     // 問題サンプルの生成
     {  // 実際のマップたち(未知)
 
         // ガウシアン照明関数
+        Grid::GridVector<Complex<WaveAmplitude>, Length, 2> probe{reconstruct_box_range, reconstruct_box_range};
         std::cout << "probe..." << std::endl;
         std::normal_distribution<> dist_x(0.0, light_stddev / 1.0_m);
         std::normal_distribution<> dist_y(0.0, light_stddev / 1.0_m);
 
-        constexpr std::size_t source_sample = 50000;
+        constexpr std::size_t source_sample = 10 * reconstruct_box_pixel_num * reconstruct_box_pixel_num;
         for (std::size_t i = 0; i < source_sample; ++i) {
             Length x = dist_x(engine) * 1.0_m;
             Length y = dist_y(engine) * 1.0_m;
@@ -134,7 +134,7 @@ int main()
         // サンプル生成
         std::cout << "measurement..." << std::endl;
         {
-            auto offset_range = Grid::arange(-scanning_half_length, scanning_half_length, scanning_step);
+            auto offset_range = Grid::linspace(-scanning_half_length, scanning_half_length, measure_num);
             Grid::GridVector<Complex<WaveAmplitude>, Length, 2> exit{reconstruct_box_range, reconstruct_box_range};
             Grid::GridVector<Complex<WaveAmplitude>, Length, 2> detected{detector_range, detector_range};
 
@@ -144,17 +144,33 @@ int main()
                 FFTW_FORWARD, FFTW_MEASURE);
             bool first = true;
 
+            Grid::GridVector<Complex<WaveAmplitude>, Length, 2> whiteboard{object_range, object_range};
+
             for (auto [offset_x, offset_y] : Grid::prod(offset_range, offset_range)) {
+
+                {
+                    auto range = Grid::arange(-5.0_nm, 5.0_nm, 1.0_nm);
+                    for (auto [x, y] : Grid::zip(Grid::prod(range, range))) {
+                        whiteboard.at(x + offset_x, y + offset_y) += 1000.0 * amp_unit;
+                    }
+                    for (auto [x, y] : Grid::prod(probe.line(0), probe.line(1))) {
+                        whiteboard.at(x + offset_x, y + offset_y) += 100.0 * amp_unit;
+                    }
+                }
 
                 // 出口波面 = 照射関数 * 透過関数
                 for (auto [x, y, e, p] : Grid::zip(exit_lines, exit, probe)) {
                     e = p * object.at(x + offset_x, y + offset_y);
                 }
 
+                if (first) {
+                    print_file(exit, "exit_example.txt");
+                }
+
                 // 出口 -> ディテクター面
                 fftw_execute(plan);
 
-                detected_rtI_list.emplace_back(offset_x, offset_y, Grid::DynamicRange<Length>{-scanning_half_length, scanning_half_length, measure_num});
+                detected_rtI_list.emplace_back(offset_x, offset_y, detector_range);
 
                 for (auto [f, rtI] : Grid::zip(detected, detected_rtI_list.back().dist_abs)) {
                     rtI = std::abs(f) / (double)reconstruct_box_pixel_num;
@@ -167,13 +183,16 @@ int main()
             }
             fftw_destroy_plan(plan);
             std::cout << "sample size: " << detected_rtI_list.size() << std::endl;
+
+            print_file(whiteboard, "whiteboard.txt");
         }
     }
+
 
     std::cout << "Calculating ..." << std::endl;
 
     // タイコグラフィをやる
-    //Grid::GridVector<Complex<WaveAmplitude>, Length, 2> probe{reconstruct_box_range, reconstruct_box_range};
+    Grid::GridVector<Complex<WaveAmplitude>, Length, 2> probe{reconstruct_box_range, reconstruct_box_range};
     Grid::GridVector<std::complex<double>, Length, 2> object{object_range, object_range};
 
     // 反復計算
@@ -189,16 +208,16 @@ int main()
 
     auto reconstruct_box_lines = reconstruct_box.lines();
 
-    fftw_plan plan_to_real = fftw_plan_dft_2d(detector_pixel_num, reconstruct_box_pixel_num,
-        (fftw_complex*)detected.data(), (fftw_complex*)exit_new.data(), FFTW_FORWARD, FFTW_MEASURE);
     fftw_plan plan_to_reciprocal = fftw_plan_dft_2d(reconstruct_box_pixel_num, detector_pixel_num,
-        (fftw_complex*)exit.data(), (fftw_complex*)detected.data(), FFTW_BACKWARD, FFTW_MEASURE);
+        (fftw_complex*)exit.data(), (fftw_complex*)detected.data(), FFTW_FORWARD, FFTW_MEASURE);
+    fftw_plan plan_to_real = fftw_plan_dft_2d(detector_pixel_num, reconstruct_box_pixel_num,
+        (fftw_complex*)detected.data(), (fftw_complex*)exit_new.data(), FFTW_BACKWARD, FFTW_MEASURE);
 
     // プローブの初期化
-    //std::uniform_real_distribution<double> dist_probe_init{0.0, 1.0};
-    //for (auto& p : probe) {
-    //p = polar(amp_unit, dist_probe_init(engine) * 1.0_rad);
-    //}
+    std::uniform_real_distribution<double> dist_probe_init{0.0, 1.0};
+    for (auto& p : probe) {
+        p = dist_probe_init(engine) * amp_unit;
+    }
     print_file(probe, "probe_init.txt");
 
     // オブジェクトの初期値散布
@@ -208,7 +227,9 @@ int main()
     }
     print_file(object, "object_init.txt");
 
-    for (int iteration = 0; iteration < 100; ++iteration) {
+    bool first = true;
+
+    for (int iteration = 0; iteration < 201; ++iteration) {
 
         std::cout << "Rep: " << iteration << std::endl;
 
@@ -229,16 +250,13 @@ int main()
             fftw_execute(plan_to_reciprocal);
 
             // 逆空間拘束
+            constexpr double fft_scale_factor = reconstruct_box_pixel_num * reconstruct_box_pixel_num;
             for (auto [f, rtI] : Grid::zip(detected, mes.dist_abs)) {
-                f = std::polar(rtI, f.arg());
+                f = std::polar(rtI / fft_scale_factor, f.arg());
             }
 
             // ディテクター面 -> 出口 (detected(constrained) -> exit_new)
             fftw_execute(plan_to_real);
-            double fft_scale_factor = reconstruct_box_pixel_num * reconstruct_box_pixel_num;
-            for (auto& e_new : exit_new) {
-                e_new /= fft_scale_factor;
-            }
 
             // probe_prev = probe
             for (auto [p, p_prev] : Grid::zip(probe, probe_prev)) {
@@ -246,18 +264,18 @@ int main()
             }
 
             // 実空間での更新 (Probe)
-            //double r_norm_max = 0.0;
-            //for (auto [r, r_norm] : Grid::zip(reconstruct_box, reconstruct_box_norm)) {
-            //r_norm = std::norm(r);
-            //if (r_norm > r_norm_max) {
-            //r_norm_max = r_norm;
-            //}
-            //}
+            double r_norm_max = 0.0;
+            for (auto [r, r_norm] : Grid::zip(reconstruct_box, reconstruct_box_norm)) {
+                r_norm = std::norm(r);
+                if (r_norm > r_norm_max) {
+                    r_norm_max = r_norm;
+                }
+            }
 
-            //for (auto [p, r, r_norm, e, e_new] : Grid::zip(probe, reconstruct_box, reconstruct_box_norm, exit, exit_new)) {
-            //auto weight = std::conj(r) / (alpha * r_norm_max + (1.0 - alpha) * r_norm);
-            //p = p_prev + weight * (e_new - e);
-            //}
+            for (auto [p, r, r_norm, e, e_new] : Grid::zip(probe, reconstruct_box, reconstruct_box_norm, exit, exit_new)) {
+                std::complex<double> weight = std::conj(r) / (alpha * r_norm_max + (1.0 - alpha) * r_norm);
+                p += weight * (e_new - e);
+            }
 
             // 実空間での更新 (Object in reconstruct_box)
             PhotonFluxDensity p_norm_max = 0.0 * dens_unit;
@@ -267,10 +285,8 @@ int main()
                     p_norm_max = p_norm;
                 }
             }
-            PhotonFluxDensity epsilon = 1.0e-20 * dens_unit;
             for (auto [r, p_prev, p_norm, e, e_new] : Grid::zip(reconstruct_box, probe_prev, probe_norm, exit, exit_new)) {
-                //auto weight = std::conj(p_prev) / (beta * p_norm_max + (1.0 - beta) * p_norm);
-                ObjectUpdateWeight weight = (p_norm / p_norm_max).sqrt() * std::conj(p_prev) / (p_norm + epsilon);
+                ObjectUpdateWeight weight = std::conj(p_prev) / (beta * p_norm_max + (1.0 - beta) * p_norm);
                 r += std::complex<double>(weight * (e_new - e));
             }
 
@@ -280,8 +296,10 @@ int main()
             }
         }
 
-        // print_file(probe, "epoch_" + std::to_string(iteration) + "_probe.txt");
-        print_file(object, "epoch_" + std::to_string(iteration) + "_object.txt");
+        if (iteration % 10 == 0) {
+            print_file(probe, "epoch_" + std::to_string(iteration) + "_probe.txt");
+            print_file(object, "epoch_" + std::to_string(iteration) + "_object.txt");
+        }
     }
 
     fftw_destroy_plan(plan_to_real);

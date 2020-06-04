@@ -3,6 +3,7 @@
 #include <array>
 #include <bitset>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <random>
@@ -12,6 +13,33 @@
 #include <unit/double.hpp>
 
 #if 1
+
+int main()
+{
+    Grid::GridVector<double, double, 2> dist_large{{-5.0, 5.0, 200}, {-5.0, 5.0, 200}};
+    Grid::GridVector<double, double, 2> dist_small{{-4.0, 4.0, 9}, {-4.0, 4.0, 9}};
+
+    dist_large.fill(0.0);
+
+    for (auto [x, y] : dist_small.lines()) {
+        dist_large.at(x, y) = 100.0;
+    }
+
+    std::ofstream file("test.txt");
+
+    for (auto& x : dist_large.line(0)) {
+        for (auto& y : dist_large.line(1)) {
+            file << x << ' ' << y << ' ' << dist_large.at(x, y) << std::endl;
+        }
+        file << std::endl;
+    }
+}
+
+
+#endif
+
+
+#if 0
 template <typename T>
 void print_bits(T val)
 {

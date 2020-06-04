@@ -97,7 +97,7 @@ int main()
         std::normal_distribution<> dist_x(0.0, light_stddev / 1.0_m);
         std::normal_distribution<> dist_y(0.0, light_stddev / 1.0_m);
 
-        constexpr std::size_t source_sample = 50000;
+        constexpr std::size_t source_sample = 10 * reconstruct_box_pixel_num * reconstruct_box_pixel_num;
         for (std::size_t i = 0; i < source_sample; ++i) {
             Length x = dist_x(engine) * 1.0_m;
             Length y = dist_y(engine) * 1.0_m;
@@ -163,17 +163,33 @@ int main()
                     e = p * object.at(x + offset_x, y + offset_y);
                 }
 
+                if (first) {
+                    print_file(exit, "measurement_exit_example.txt");
+                }
+
                 // 出口 -> ディテクター面
                 fftw_execute(plan);
 
-                detected_rtI_list.emplace_back(offset_x, offset_y, Grid::DynamicRange<Length>{-scanning_half_length, scanning_half_length, measure_num});
+                if (first) {
+                    print_file(detected, "measurement.txt");
+                }
+
+                detected_rtI_list.emplace_back(offset_x, offset_y, detector_range);
 
                 for (auto [f, rtI] : Grid::zip(detected, detected_rtI_list.back().dist_abs)) {
                     rtI = std::abs(f) / (double)reconstruct_box_pixel_num;
                 }
 
                 if (first) {
-                    print_file(detected, "measurement.txt");
+                    std::ofstream file("data_pie/measurement_rtI.txt");
+                    for (auto x : detected_rtI_list.back().dist_abs.line(0)) {
+                        for (auto y : detected_rtI_list.back().dist_abs.line(1)) {
+                            file << x / 1.0_m << ' '
+                                 << y / 1.0_m << ' '
+                                 << detected_rtI_list.back().dist_abs.at(x, y) << std::endl;
+                        }
+                        file << std::endl;
+                    }
                     first = false;
                 }
             }
@@ -186,7 +202,6 @@ int main()
     std::cout << "Calculating ..." << std::endl;
 
     // タイコグラフィをやる
-    //Grid::GridVector<Complex<WaveAmplitude>, Length, 2> probe{reconstruct_box_range, reconstruct_box_range};
     Grid::GridVector<std::complex<double>, Length, 2> object{object_range, object_range};
 
     // 反復計算
@@ -201,10 +216,10 @@ int main()
 
     auto reconstruct_box_lines = reconstruct_box.lines();
 
-    fftw_plan plan_to_real = fftw_plan_dft_2d(detector_pixel_num, reconstruct_box_pixel_num,
-        (fftw_complex*)detected.data(), (fftw_complex*)exit_new.data(), FFTW_FORWARD, FFTW_MEASURE);
     fftw_plan plan_to_reciprocal = fftw_plan_dft_2d(reconstruct_box_pixel_num, detector_pixel_num,
-        (fftw_complex*)exit.data(), (fftw_complex*)detected.data(), FFTW_BACKWARD, FFTW_MEASURE);
+        (fftw_complex*)exit.data(), (fftw_complex*)detected.data(), FFTW_FORWARD, FFTW_MEASURE);
+    fftw_plan plan_to_real = fftw_plan_dft_2d(detector_pixel_num, reconstruct_box_pixel_num,
+        (fftw_complex*)detected.data(), (fftw_complex*)exit_new.data(), FFTW_BACKWARD, FFTW_MEASURE);
 
     // オブジェクトの初期値散布
     std::uniform_real_distribution<double> dist_obj_init{0.0, 1.0};
@@ -227,7 +242,9 @@ int main()
             w = (p_norm / p_norm_max).sqrt() * std::conj(p) / (p_norm + epsilon);
         }
     }
+    print_file(object_update_weight, "object_update_weight.txt");
 
+    bool first = true;
     for (int iteration = 0; iteration < 100; ++iteration) {
 
         std::cout << "Rep: " << iteration << std::endl;
@@ -240,24 +257,48 @@ int main()
                 r = object.at(x + mes.offset_x, y + mes.offset_y);
             }
 
+
             // 出口波面 = 照射関数 * 透過関数
             for (auto [p, r, e] : Grid::zip(probe, reconstruct_box, exit)) {
                 e = p * r;
             }
 
+            if (first) {
+                print_file(reconstruct_box, "reconstruct_box_example.txt");
+                print_file(exit, "exit_example.txt");
+            }
+
             // 出口 -> ディテクター面 (exit -> detected)
             fftw_execute(plan_to_reciprocal);
 
+            if (first) {
+                print_file(detected, "reciprocal_example.txt");
+            }
+
             // 逆空間拘束
+            constexpr double fft_scale_factor = reconstruct_box_pixel_num * reconstruct_box_pixel_num;
             for (auto [f, rtI] : Grid::zip(detected, mes.dist_abs)) {
-                f = std::polar(rtI, f.arg());
+                f = std::polar(rtI / fft_scale_factor, f.arg());
+            }
+
+            if (first) {
+                print_file(detected, "reciprocal_constrained_example.txt");
             }
 
             // ディテクター面 -> 出口 (detected(constrained) -> exit_new)
             fftw_execute(plan_to_real);
-            double fft_scale_factor = reconstruct_box_pixel_num * reconstruct_box_pixel_num;
-            for (auto& e_new : exit_new) {
-                e_new /= fft_scale_factor;
+
+            if (first) {
+                print_file(exit_new, "exit_new_example.txt");
+            }
+
+            if (first) {
+                Grid::GridVector<Complex<WaveAmplitude>, Length, 2> exit_diff{reconstruct_box_range, reconstruct_box_range};
+                for (auto [e, e_new, e_diff] : Grid::zip(exit, exit_new, exit_diff)) {
+                    e_diff = e_new - e;
+                }
+                print_file(exit_diff, "exit_diff_example.txt");
+                first = false;
             }
 
             // 実空間での更新(Object)

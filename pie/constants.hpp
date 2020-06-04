@@ -42,7 +42,5 @@ inline constexpr Length lambda = 0.5_nm;
 inline constexpr WaveNumber k = 2.0 * M_PI / lambda;
 
 inline constexpr PhotonFluxDensity epsilon = 1.0e-20 * dens_unit;
-inline constexpr double alpha = 1.0;
-inline constexpr double beta = 1.0;
 
 }  // namespace Constant
